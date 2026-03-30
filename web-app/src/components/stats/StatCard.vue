@@ -1,5 +1,5 @@
 <template>
-  <div class="stat-card">
+  <article class="stat-card">
     <div class="stat-card-header">
       <span v-if="icon" class="stat-icon">{{ icon }}</span>
       <span class="stat-title">{{ title }}</span>
@@ -11,13 +11,13 @@
         <span v-if="unit" class="stat-unit">{{ unit }}</span>
       </template>
     </div>
-    <div v-if="trend && !loading" class="stat-trend">
+    <div v-if="trend && !loading" class="stat-trend" :class="`trend-${trend.direction}`" :aria-label="`Trend ${trend.direction} by ${trendValue} percent`">
       <span :class="['trend-indicator', `trend-${trend.direction}`]">
         {{ trend.direction === 'up' ? '↑' : '↓' }}
-        {{ Math.abs(trend.value) }}%
+        {{ trendValue }}%
       </span>
     </div>
-  </div>
+  </article>
 </template>
 
 <script setup lang="ts">
@@ -46,6 +46,8 @@ const formattedValue = computed(() => {
   }
   return props.value
 })
+
+const trendValue = computed(() => props.trend ? Math.abs(props.trend.value) : 0)
 </script>
 
 <style scoped>
