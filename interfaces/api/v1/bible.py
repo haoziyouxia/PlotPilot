@@ -200,6 +200,36 @@ async def create_bible(
     return service.create_bible(request.bible_id, novel_id)
 
 
+# 注意：必须先注册比 `/novels/{id}/bible` 更长的路径，避免与 `{novel_id}` 匹配歧义
+@router.get("/novels/{novel_id}/bible/status")
+async def get_bible_status(
+    novel_id: str,
+    service: BibleService = Depends(get_bible_service)
+):
+    """检查 Bible 生成状态
+
+    Args:
+        novel_id: 小说 ID
+        service: Bible 服务
+
+    Returns:
+        状态信息：{ "exists": bool, "ready": bool }
+    """
+    try:
+        bible = service.get_bible_by_novel(novel_id)
+        exists = bible is not None
+        ready = exists and len(bible.characters) > 0  # 有角色说明已生成完成
+
+        return {
+            "exists": exists,
+            "ready": ready,
+            "novel_id": novel_id
+        }
+    except Exception as e:
+        logger.exception("get_bible_status failed for novel_id=%s", novel_id)
+        raise HTTPException(status_code=500, detail=f"检查 Bible 状态失败: {e}") from e
+
+
 @router.get("/novels/{novel_id}/bible", response_model=BibleDTO)
 async def get_bible_by_novel(
     novel_id: str,
@@ -224,31 +254,6 @@ async def get_bible_by_novel(
             detail=f"Bible not found for novel: {novel_id}"
         )
     return bible
-
-
-@router.get("/novels/{novel_id}/bible/status")
-async def get_bible_status(
-    novel_id: str,
-    service: BibleService = Depends(get_bible_service)
-):
-    """检查 Bible 生成状态
-
-    Args:
-        novel_id: 小说 ID
-        service: Bible 服务
-
-    Returns:
-        状态信息：{ "exists": bool, "ready": bool }
-    """
-    bible = service.get_bible_by_novel(novel_id)
-    exists = bible is not None
-    ready = exists and len(bible.characters) > 0  # 有角色说明已生成完成
-
-    return {
-        "exists": exists,
-        "ready": ready,
-        "novel_id": novel_id
-    }
 
 
 @router.get("/novels/{novel_id}/bible/characters", response_model=list)
