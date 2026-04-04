@@ -2,10 +2,15 @@
 
 import logging
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from application.services.macro_refactor_scanner import MacroRefactorScanner
-from application.dtos.macro_refactor_dto import LogicBreakpoint
-from interfaces.api.dependencies import get_macro_refactor_scanner
+from application.services.macro_refactor_proposal_service import MacroRefactorProposalService
+from application.dtos.macro_refactor_dto import (
+    LogicBreakpoint,
+    RefactorProposalRequest,
+    RefactorProposal
+)
+from interfaces.api.dependencies import get_macro_refactor_scanner, get_macro_refactor_proposal_service
 
 logger = logging.getLogger(__name__)
 
@@ -55,4 +60,42 @@ async def scan_breakpoints(
 
     except Exception as e:
         logger.error(f"Error scanning breakpoints: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.post("/{novel_id}/macro-refactor/proposals", response_model=RefactorProposal)
+async def generate_proposal(
+    novel_id: str,
+    request: RefactorProposalRequest = Body(...),
+    proposal_service: MacroRefactorProposalService = Depends(get_macro_refactor_proposal_service)
+) -> RefactorProposal:
+    """
+    Generate refactor proposal using LLM.
+
+    This endpoint analyzes a narrative event and generates structured suggestions
+    for fixing character trait conflicts or narrative inconsistencies.
+
+    Args:
+        novel_id: The novel ID
+        request: Refactor proposal request with event details and author intent
+        proposal_service: Injected macro refactor proposal service
+
+    Returns:
+        RefactorProposal with natural language suggestions and structured mutations
+
+    Raises:
+        HTTPException: 500 if internal error occurs
+    """
+    try:
+        # Generate proposal using LLM
+        proposal = await proposal_service.generate_proposal(request)
+
+        logger.info(
+            f"Generated proposal for novel {novel_id}, event {request.event_id}: "
+            f"{len(proposal.suggested_mutations)} mutations"
+        )
+        return proposal
+
+    except Exception as e:
+        logger.error(f"Error generating proposal: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")

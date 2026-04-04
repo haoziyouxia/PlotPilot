@@ -133,3 +133,57 @@ class TestMacroRefactorAPI:
         assert response.status_code == 200
         breakpoints = response.json()
         assert len(breakpoints) == 0
+
+    @pytest.mark.asyncio
+    async def test_generate_proposal(self, client, setup_test_data):
+        """测试：生成重构提案"""
+        novel_id = setup_test_data
+
+        # 构建请求
+        request_data = {
+            "event_id": "evt_001",
+            "author_intent": "让角色表现得更冷酷",
+            "current_event_summary": "角色冲动地救了一个陌生人",
+            "current_tags": ["动机:冲动", "情感:同情"]
+        }
+
+        # 发送请求
+        response = client.post(
+            f"/api/v1/novels/{novel_id}/macro-refactor/proposals",
+            json=request_data
+        )
+
+        # 验证响应
+        assert response.status_code == 200
+        proposal = response.json()
+
+        # 验证提案结构
+        assert "natural_language_suggestion" in proposal
+        assert "suggested_mutations" in proposal
+        assert "suggested_tags" in proposal
+        assert "reasoning" in proposal
+
+        # 验证提案内容不为空
+        assert len(proposal["natural_language_suggestion"]) > 0
+        assert isinstance(proposal["suggested_mutations"], list)
+        assert isinstance(proposal["suggested_tags"], list)
+        assert len(proposal["reasoning"]) > 0
+
+    def test_generate_proposal_validation(self, client):
+        """测试：验证提案请求参数"""
+        novel_id = "test-novel"
+
+        # 缺少必需字段
+        invalid_request = {
+            "event_id": "evt_001"
+            # 缺少其他必需字段
+        }
+
+        # 发送请求
+        response = client.post(
+            f"/api/v1/novels/{novel_id}/macro-refactor/proposals",
+            json=invalid_request
+        )
+
+        # 应该返回 422 验证错误
+        assert response.status_code == 422

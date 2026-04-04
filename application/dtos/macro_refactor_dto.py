@@ -1,6 +1,6 @@
 """Macro Refactor DTOs"""
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 
 @dataclass
@@ -17,3 +17,21 @@ class BreakpointScanRequest:
     """断点扫描请求"""
     trait: str  # 目标人设标签，如 "冷酷"
     conflict_tags: Optional[List[str]] = None  # 冲突标签列表，如 ["动机:冲动"]
+
+
+@dataclass
+class RefactorProposalRequest:
+    """重构提案请求"""
+    event_id: str
+    author_intent: str  # 作者意图描述
+    current_event_summary: str  # 当前事件摘要
+    current_tags: List[str]  # 当前标签
+
+
+@dataclass
+class RefactorProposal:
+    """重构提案"""
+    natural_language_suggestion: str  # 自然语言建议
+    suggested_mutations: List[Dict[str, Any]]  # 建议的 mutations
+    suggested_tags: List[str]  # 建议的新标签
+    reasoning: str  # 推理过程

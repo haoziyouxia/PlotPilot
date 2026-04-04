@@ -528,3 +528,23 @@ def get_macro_refactor_scanner():
 
     narrative_event_repo = SqliteNarrativeEventRepository(get_database())
     return MacroRefactorScanner(narrative_event_repo)
+
+
+def get_macro_refactor_proposal_service():
+    """获取宏观重构提案服务
+
+    Returns:
+        MacroRefactorProposalService 实例
+    """
+    from application.services.macro_refactor_proposal_service import MacroRefactorProposalService
+
+    settings = _anthropic_settings(require_key=False)
+    if settings:
+        llm_service = AnthropicProvider(settings)
+        logger.info("Using AnthropicProvider for macro refactor proposals")
+    else:
+        from infrastructure.ai.providers.mock_provider import MockProvider
+        llm_service = MockProvider()
+        logger.warning("No API key found, using MockProvider for macro refactor proposals")
+
+    return MacroRefactorProposalService(llm_service)
