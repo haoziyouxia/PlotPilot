@@ -6,15 +6,15 @@
     :closable="false"
     preset="card"
     title="新书设置向导"
-    style="width: 600px"
+    style="width: 90%; max-width: 600px; max-height: 90vh"
   >
-    <n-steps :current="currentStep" :status="stepStatus">
-      <n-step title="生成世界观" description="AI 生成世界观（5维度）和文风公约" />
-      <n-step title="生成人物" description="基于世界观生成主要角色" />
-      <n-step title="生成地图" description="基于世界观生成完整地点系统" />
-      <n-step title="规划故事线" description="设计主线、支线和暗线" />
-      <n-step title="设计情节弧" description="规划剧情张力曲线" />
-      <n-step title="开始创作" description="进入工作台" />
+    <n-steps :current="currentStep" :status="stepStatus" size="small">
+      <n-step title="世界观" description="5维度框架" />
+      <n-step title="人物" description="主要角色" />
+      <n-step title="地图" description="地图系统" />
+      <n-step title="故事线" description="主线支线" />
+      <n-step title="情节弧" description="剧情曲线" />
+      <n-step title="开始" description="进入工作台" />
     </n-steps>
 
     <div class="step-content">
@@ -553,6 +553,8 @@ const handleComplete = () => {
 .step-content {
   margin: 32px 0;
   min-height: 280px;
+  max-height: calc(90vh - 280px);
+  overflow-y: auto;
 }
 
 .step-panel {
