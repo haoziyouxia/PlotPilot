@@ -4,6 +4,9 @@
     <n-empty v-if="!currentChapterNumber" description="请先从左侧选择一个章节" style="margin-top: 40px" />
 
     <template v-else>
+      <n-alert v-if="readOnly" type="warning" :show-icon="true" style="margin-bottom: 8px; font-size: 12px">
+        托管运行中：仅可查看元素列表，不可增删。
+      </n-alert>
       <!-- 顶栏 -->
       <div class="ce-header">
         <n-text strong>第 {{ currentChapterNumber }} 章元素关联</n-text>
@@ -40,6 +43,7 @@
                 </n-tag>
               </div>
               <n-button
+                v-if="!readOnly"
                 size="tiny"
                 type="error"
                 text
@@ -54,7 +58,7 @@
 
       <!-- 添加表单 -->
       <n-card
-        v-if="storyNodeId && !storyNodeNotFound"
+        v-if="storyNodeId && !storyNodeNotFound && !readOnly"
         title="添加元素关联"
         size="small"
         :bordered="false"
@@ -121,10 +125,15 @@ import type { ChapterElementDTO, ElementType, RelationType, Importance } from '.
 import { planningApi } from '../../api/planning'
 import type { StoryNode } from '../../api/planning'
 
-const props = defineProps<{
-  slug: string
-  currentChapterNumber?: number | null
-}>()
+const props = withDefaults(
+  defineProps<{
+    slug: string
+    currentChapterNumber?: number | null
+    /** 托管运行时只读，不可增删元素 */
+    readOnly?: boolean
+  }>(),
+  { currentChapterNumber: null, readOnly: false }
+)
 
 const message = useMessage()
 
