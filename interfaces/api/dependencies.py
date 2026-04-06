@@ -248,7 +248,7 @@ def get_bible_service() -> BibleService:
     from application.world.services.bible_location_triple_sync import BibleLocationTripleSyncService
     from infrastructure.persistence.database.triple_repository import TripleRepository
 
-    sync = BibleLocationTripleSyncService(TripleRepository(get_db_path()))
+    sync = BibleLocationTripleSyncService(TripleRepository())
     return BibleService(get_bible_repository(), location_triple_sync=sync)
 
 
@@ -468,7 +468,7 @@ def get_auto_bible_generator() -> AutoBibleGenerator:
     db_path = get_db_path()
     worldbuilding_repo = WorldbuildingRepository(db_path)
     worldbuilding_service = WorldbuildingService(worldbuilding_repo)
-    triple_repo = TripleRepository(db_path)
+    triple_repo = TripleRepository()
 
     return AutoBibleGenerator(
         llm_service=llm_service,

@@ -66,6 +66,7 @@ async def _try_infer_kg_chapter(novel_id: str, chapter_number: int) -> None:
     """
     try:
         from application.paths import get_db_path
+        from infrastructure.persistence.database.connection import get_database
         from infrastructure.persistence.database.sqlite_knowledge_repository import SqliteKnowledgeRepository
         from infrastructure.persistence.database.triple_repository import TripleRepository
         from infrastructure.persistence.database.chapter_element_repository import ChapterElementRepository
@@ -73,14 +74,14 @@ async def _try_infer_kg_chapter(novel_id: str, chapter_number: int) -> None:
         from application.world.services.knowledge_graph_service import KnowledgeGraphService
 
         db_path = get_db_path()
-        kr = SqliteKnowledgeRepository(db_path)
+        kr = SqliteKnowledgeRepository(get_database())
         story_node_id = kr.find_story_node_id_for_chapter_number(novel_id, chapter_number)
         if not story_node_id:
             logger.debug("KG 推断跳过：章节 %d 无故事节点 novel=%s", chapter_number, novel_id)
             return
 
         kg_service = KnowledgeGraphService(
-            TripleRepository(db_path),
+            TripleRepository(),
             ChapterElementRepository(db_path),
             StoryNodeRepository(db_path),
         )

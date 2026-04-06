@@ -25,15 +25,15 @@ def get_kg_service() -> KnowledgeGraphService:
     """获取知识图谱服务"""
     db_path = get_db_path()
     return KnowledgeGraphService(
-        TripleRepository(db_path),
+        TripleRepository(),
         ChapterElementRepository(db_path),
-        StoryNodeRepository(db_path)
+        StoryNodeRepository(db_path),
     )
 
 
 def get_triple_repo() -> TripleRepository:
     """获取三元组仓储"""
-    return TripleRepository(get_db_path())
+    return TripleRepository()
 
 
 # ==================== API 端点 ====================

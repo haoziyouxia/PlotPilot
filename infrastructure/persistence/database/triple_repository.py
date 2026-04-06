@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Any, List, Mapping, Optional
+from typing import Any, List, Mapping, Optional, Union
 
 from domain.bible.triple import Triple, SourceType
 from domain.knowledge.triple_provenance import TripleProvenanceRecord
@@ -109,11 +109,23 @@ BIBLE_ANCHOR_PREDICATE = "地图地点"
 
 
 class TripleRepository:
-    """三元组仓储（与 Knowledge 层共用 triples 表形状）"""
+    """三元组仓储（与 Knowledge 层共用 triples 表形状）
 
-    def __init__(self, db_path: str):
-        self.db_path = db_path
-        self._db = DatabaseConnection(db_path)
+    生产环境应传入共享的 ``get_database()`` 实例，避免每次 ``DatabaseConnection(path)``
+    重复跑 schema 与刷屏「Database initialized」。
+    测试可传入 ``str`` 路径或 ``DatabaseConnection``。
+    """
+
+    def __init__(self, db: Union[DatabaseConnection, str, None] = None):
+        if isinstance(db, DatabaseConnection):
+            self._db = db
+        elif isinstance(db, str):
+            self._db = DatabaseConnection(db)
+        else:
+            from infrastructure.persistence.database.connection import get_database
+
+            self._db = get_database()
+        self.db_path = self._db.db_path
         self._kr = SqliteKnowledgeRepository(self._db)
 
     def persist_triple_sync(self, novel_id: str, triple: Triple) -> None:

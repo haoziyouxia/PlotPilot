@@ -88,9 +88,9 @@ async def add_chapter_element(
         from infrastructure.persistence.database.story_node_repository import StoryNodeRepository
 
         kg_service = KnowledgeGraphService(
-            TripleRepository(get_db_path()),
+            TripleRepository(),
             repo,
-            StoryNodeRepository(get_db_path())
+            StoryNodeRepository(get_db_path()),
         )
         await kg_service.infer_from_chapter(chapter_id)
 
@@ -174,9 +174,9 @@ async def batch_update_chapter_elements(
         from infrastructure.persistence.database.story_node_repository import StoryNodeRepository
 
         kg_service = KnowledgeGraphService(
-            TripleRepository(get_db_path()),
+            TripleRepository(),
             repo,
-            StoryNodeRepository(get_db_path())
+            StoryNodeRepository(get_db_path()),
         )
         await kg_service.infer_from_chapter(chapter_id)
 

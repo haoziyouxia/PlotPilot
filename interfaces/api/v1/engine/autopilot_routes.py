@@ -102,7 +102,7 @@ async def resume_from_review(novel_id: str):
     novel.autopilot_status = AutopilotStatus.RUNNING
     novel.current_stage = NovelStage.ACT_PLANNING
     repo.save(novel)
-    return {"success": True, "message": "已恢复，开始规划下一幕章节"}
+    return {"success": True, "message": "已恢复：若章节规划已存在则进入写作，否则继续幕级规划"}
 
 
 @router.get("/{novel_id}/status")
@@ -122,6 +122,8 @@ async def get_autopilot_status(novel_id: str):
     )
     _status = lambda c: c.status.value if hasattr(c.status, 'value') else c.status
     completed = [c for c in chapters if _status(c) == "completed"]
+    in_manuscript = [c for c in chapters if _status(c) in ("draft", "completed")]
+    target = novel.target_chapters or 1
 
     return {
         "autopilot_status": novel.autopilot_status.value,
@@ -136,7 +138,9 @@ async def get_autopilot_status(novel_id: str):
         "total_words": total_words,
         "completed_chapters": len(completed),
         "target_chapters": novel.target_chapters,
-        "progress_pct": round(len(completed) / novel.target_chapters * 100, 1) if novel.target_chapters else 0,
+        "progress_pct": round(len(completed) / target * 100, 1) if target else 0,
+        "manuscript_chapters": len(in_manuscript),
+        "progress_pct_manuscript": round(len(in_manuscript) / target * 100, 1) if target else 0,
         "needs_review": novel.current_stage.value == "paused_for_review",
     }
 
@@ -409,6 +413,8 @@ async def autopilot_events(novel_id: str):
                 )
                 _st = lambda c: c.status.value if hasattr(c.status, 'value') else c.status
                 completed = [c for c in chapters if _st(c) == "completed"]
+                in_manuscript = [c for c in chapters if _st(c) in ("draft", "completed")]
+                tgt = novel.target_chapters or 1
 
                 data = {
                     "autopilot_status": novel.autopilot_status.value,
@@ -416,6 +422,9 @@ async def autopilot_events(novel_id: str):
                     "current_act": novel.current_act,
                     "current_beat_index": getattr(novel, "current_beat_index", 0),
                     "completed_chapters": len(completed),
+                    "manuscript_chapters": len(in_manuscript),
+                    "progress_pct": round(len(completed) / tgt * 100, 1) if tgt else 0,
+                    "progress_pct_manuscript": round(len(in_manuscript) / tgt * 100, 1) if tgt else 0,
                     "total_words": total_words,
                     "target_chapters": novel.target_chapters,
                     "needs_review": novel.current_stage.value == "paused_for_review",
