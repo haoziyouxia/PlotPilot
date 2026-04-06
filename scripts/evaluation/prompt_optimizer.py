@@ -12,7 +12,7 @@ from dataclasses import dataclass
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from .base_evaluator import (
+from scripts.evaluation.base_evaluator import (
     BaseEvaluator,
     EvaluationResult,
     create_metric,
