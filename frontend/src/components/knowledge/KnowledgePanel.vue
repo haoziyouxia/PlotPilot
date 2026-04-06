@@ -4,7 +4,7 @@
       <div class="kp-hero-copy">
         <h3 class="kp-title">侧栏资料</h3>
         <p class="kp-lead">
-          可在「检索与编辑」「叙事知识」「关系图」间切换：检索与编辑含全书知识检索、三元组图谱与表格编辑；叙事含梗概锁定、章摘要；<strong>关系图从知识库三元组自动生成</strong>（人物网 / 地点图全页与工作台均可打开「三元组表格」编辑）。书目级梗概以
+          可在「检索与编辑」「叙事知识」「关系图」间切换：检索与编辑含全书知识检索、三元组图谱与表格编辑；叙事含<strong>分章叙事</strong>与实体状态；<strong>梗概锁定已迁至右侧「剧本基建 → 作品设定」</strong>。<strong>关系图从知识库三元组自动生成</strong>（人物网 / 地点图全页与工作台均可打开「三元组表格」编辑）。书目级梗概以
           <strong>manifest</strong> 为准。
         </p>
       </div>
@@ -14,9 +14,9 @@
           secondary
           :loading="generating"
           @click="generateKnowledge"
-          title="用 AI 根据 Bible 生成初始梗概锁定"
+          title="用 AI 根据 Bible 生成叙事知识（梗概锁定请在作品设定中编辑）"
         >
-          ✦ AI 生成
+          ✦ AI 生成叙事
         </n-button>
         <n-button
           type="primary"
@@ -188,7 +188,7 @@
       <div class="kp-banner">
         <span class="kp-banner-dot" aria-hidden="true" />
         <span class="kp-banner-text">
-          梗概锁定、分章叙事可由工具（<code>story_*</code>）写入，也可在此手改后保存。每章「节拍」对应大纲子段落；人物名请与关系图一致。<strong>人物关系请在「知识库」中编辑三元组。</strong>
+          分章叙事可由工具（<code>story_*</code>）写入，也可在此手改后保存。梗概锁定请在「作品设定」中编辑。每章「节拍」对应大纲子段落；人物名请与关系图一致。<strong>人物关系请在「知识库」中编辑三元组。</strong>
         </span>
       </div>
 
@@ -199,26 +199,7 @@
         animated
         class="kp-subtabs"
       >
-        <n-tab-pane name="premise" tab="梗概锁定">
-        <section class="kp-section">
-        <div class="kp-section-head">
-          <span class="kp-section-icon">◆</span>
-          <span class="kp-section-title">梗概锁定</span>
-          <n-tag size="tiny" round :bordered="false" class="kp-tag-tool">story_set_premise_lock</n-tag>
-        </div>
-        <n-card size="small" class="kp-card kp-card-premise" :bordered="false">
-          <n-input
-            v-model:value="data.premise_lock"
-            type="textarea"
-            :autosize="{ minRows: 5, maxRows: 18 }"
-            placeholder="主线、不可违背设定、结局走向（与 manifest 互补，防百万字跑篇）…"
-            class="kp-textarea"
-          />
-        </n-card>
-        </section>
-      </n-tab-pane>
-
-      <n-tab-pane name="chapters" tab="分章叙事">
+        <n-tab-pane name="chapters" tab="分章叙事">
         <section class="kp-section">
         <div class="kp-section-head">
           <span class="kp-section-icon">◇</span>
@@ -405,7 +386,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useMessage } from 'naive-ui'
 import { PeopleOutline, LocationOutline } from '@vicons/ionicons5'
@@ -452,7 +433,7 @@ const data = ref({
 const saving = ref(false)
 const generating = ref(false)
 const sideTab = ref<'search' | 'narrative' | 'graph'>('search')
-const subTab = ref<'premise' | 'chapters' | 'entity-state'>('premise')
+const subTab = ref<'chapters' | 'entity-state'>('chapters')
 const knowledgeView = ref<'graph' | 'json' | 'triples'>('graph')
 
 // 三元组管理
@@ -652,16 +633,19 @@ const load = async () => {
 const save = async () => {
   saving.value = true
   try {
+    const server = await knowledgeApi.getKnowledge(props.slug)
     await knowledgeApi.updateKnowledge(props.slug, {
-      ...data.value,
+      version: server.version,
+      premise_lock: server.premise_lock,
       chapters: sortedChapters.value.map(c => ({
         ...c,
         chapter_id: Number(c.chapter_id),
         beat_sections: (c.beat_sections || []).map(s => String(s || '').trim()).filter(Boolean),
         sync_status: (c.sync_status || 'draft').toLowerCase(),
       })),
-      facts: [], // facts 现在由 KnowledgeBase 组件管理
+      facts: server.facts ?? [],
     })
+    data.value.premise_lock = server.premise_lock
     message.success('已保存并进入全书上下文')
   } catch (e: any) {
     message.error(e?.response?.data?.detail || '保存失败')
@@ -676,7 +660,7 @@ const generateKnowledge = async () => {
     const res = await knowledgeApi.generateKnowledge(props.slug)
     message.success(res.message || 'Knowledge 生成成功')
     await load()
-    subTab.value = 'premise'
+    subTab.value = 'chapters'
   } catch (e: any) {
     message.error(e?.response?.data?.detail || 'AI 生成失败，请确认 API Key 已配置')
   } finally {
@@ -726,8 +710,17 @@ watch(
   }
 )
 
+function onKnowledgeReloadFromOutside() {
+  void load()
+}
+
 onMounted(() => {
   void load()
+  window.addEventListener('aitext:knowledge:reload', onKnowledgeReloadFromOutside)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('aitext:knowledge:reload', onKnowledgeReloadFromOutside)
 })
 </script>
 

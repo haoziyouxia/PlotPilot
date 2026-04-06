@@ -1,5 +1,5 @@
 <template>
-  <div class="fs-suggestions">
+  <div class="fs-suggestions" :class="{ 'fs-suggestions--embedded': embedded }">
     <n-alert type="info" :show-icon="true" style="margin-bottom: 12px; font-size: 12px">
       <strong>写</strong>：即时计算，默认不落库（后续可接向量库 Embedding）。<strong>读</strong>：生成前勾选项可并入节拍提示（与「伏笔账本」同一数据源）。
     </n-alert>
@@ -61,10 +61,15 @@ import { useMessage } from 'naive-ui'
 import { foreshadowApi } from '../../api/foreshadow'
 import type { ChapterForeshadowSuggestionItem } from '../../api/foreshadow'
 
-const props = defineProps<{
-  slug: string
-  currentChapterNumber?: number | null
-}>()
+const props = withDefaults(
+  defineProps<{
+    slug: string
+    currentChapterNumber?: number | null
+    /** 嵌入中栏卡片时收紧外边距 */
+    embedded?: boolean
+  }>(),
+  { currentChapterNumber: null, embedded: false }
+)
 
 const message = useMessage()
 const outlineDraft = ref('')
@@ -122,6 +127,12 @@ watch(
   min-height: 0;
   overflow-y: auto;
   padding: 12px 16px 20px;
+}
+
+.fs-suggestions--embedded {
+  padding: 0;
+  height: auto;
+  max-height: none;
 }
 
 .clue-text {

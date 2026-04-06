@@ -55,7 +55,7 @@
       </n-tab-pane>
     </n-tabs>
 
-    <!-- 片场：对话沙盒 / 本章建议 / 伏笔账本 -->
+    <!-- 片场：对话沙盒 / 伏笔账本（「本章伏笔回收建议」已迁至中栏辅助撰稿 → 章节元素） -->
     <n-tabs
       v-if="activeGroup === 'tactical'"
       v-model:value="tacticalTab"
@@ -66,12 +66,6 @@
     >
       <n-tab-pane name="sandbox" tab="对话沙盒">
         <SandboxDialoguePanel :slug="slug" />
-      </n-tab-pane>
-      <n-tab-pane name="foreshadow-suggestions" tab="本章建议">
-        <ForeshadowChapterSuggestionsPanel
-          :slug="slug"
-          :current-chapter-number="currentChapter?.number ?? null"
-        />
       </n-tab-pane>
       <n-tab-pane name="foreshadow" tab="伏笔账本">
         <ForeshadowLedgerPanel :slug="slug" />
@@ -90,18 +84,20 @@ import HolographicChroniclesPanel from './HolographicChroniclesPanel.vue'
 import ForeshadowLedgerPanel from './ForeshadowLedgerPanel.vue'
 import MacroRefactorPanel from './MacroRefactorPanel.vue'
 import SandboxDialoguePanel from './SandboxDialoguePanel.vue'
-import ForeshadowChapterSuggestionsPanel from './ForeshadowChapterSuggestionsPanel.vue'
 
 /** 剧本基建组 */
 const FOUNDATION_TABS = new Set(['bible', 'worldbuilding', 'knowledge'])
 /** 叙事脉络组（时间轴+快照已并入「全息编年史」；旧 tab id 见 LEGACY_NARRATIVE） */
 const NARRATIVE_TABS = new Set(['storyline-arc', 'chronicles', 'macro-refactor'])
 const LEGACY_NARRATIVE = new Set(['storylines', 'plot-arc', 'timeline', 'snapshots'])
-/** 片场（章节元素已移至中栏 Tab） */
-const TACTICAL_TABS = new Set(['sandbox', 'foreshadow-suggestions', 'foreshadow'])
+/** 片场；本章伏笔建议在中栏「辅助撰稿 → 🧩 章节元素」 */
+const TACTICAL_TABS = new Set(['sandbox', 'foreshadow'])
+/** 旧版「本章建议」Tab 已移除，映射到对话沙盒 */
+const LEGACY_TACTICAL = new Set(['foreshadow-suggestions'])
 
 function resolveGroup(panel: string | undefined): 'foundation' | 'narrative' | 'tactical' {
   if (!panel) return 'foundation'
+  if (LEGACY_TACTICAL.has(panel)) return 'tactical'
   if (TACTICAL_TABS.has(panel)) return 'tactical'
   if (NARRATIVE_TABS.has(panel) || LEGACY_NARRATIVE.has(panel)) return 'narrative'
   return 'foundation'
@@ -144,9 +140,13 @@ const foundationTab = ref(
   FOUNDATION_TABS.has(props.currentPanel ?? '') ? props.currentPanel! : 'bible'
 )
 const narrativeTab = ref(normalizeNarrativeTab(props.currentPanel))
-const tacticalTab = ref(
-  TACTICAL_TABS.has(props.currentPanel ?? '') ? props.currentPanel! : 'sandbox'
-)
+function normalizeTacticalTab(panel: string | undefined): string {
+  if (panel && LEGACY_TACTICAL.has(panel)) return 'sandbox'
+  if (panel && TACTICAL_TABS.has(panel)) return panel
+  return 'sandbox'
+}
+
+const tacticalTab = ref(normalizeTacticalTab(props.currentPanel))
 
 function activePanelId(): string {
   if (activeGroup.value === 'foundation') return foundationTab.value
@@ -156,9 +156,9 @@ function activePanelId(): string {
 
 watch(() => props.currentPanel, (newVal) => {
   if (!newVal) return
-  if (TACTICAL_TABS.has(newVal)) {
+  if (TACTICAL_TABS.has(newVal) || LEGACY_TACTICAL.has(newVal)) {
     activeGroup.value = 'tactical'
-    tacticalTab.value = newVal
+    tacticalTab.value = normalizeTacticalTab(newVal)
   } else if (NARRATIVE_TABS.has(newVal) || LEGACY_NARRATIVE.has(newVal)) {
     activeGroup.value = 'narrative'
     narrativeTab.value = normalizeNarrativeTab(newVal)

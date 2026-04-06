@@ -121,6 +121,8 @@
                 :slug="slug"
                 :current-chapter-number="currentChapter?.number ?? null"
                 :read-only="isAssistedReadOnly"
+                :last-workflow-result="lastWorkflowResult"
+                :qc-chapter-number="lastQcChapterNumber"
               />
             </div>
           </n-tab-pane>
