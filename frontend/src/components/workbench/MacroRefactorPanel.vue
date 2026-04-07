@@ -26,6 +26,69 @@
       检测到工作台已因<strong>新章节落库</strong>刷新：叙事事件与章节范围可能已变化。若需最新断点，请重新执行 Step1 扫描。
     </n-alert>
 
+    <!-- 自动诊断结果展示 -->
+    <div v-if="latestDiagnosis" class="step-block diagnosis-result-block">
+      <div class="step-title">
+        <n-tag :type="latestDiagnosis.status === 'completed' ? 'success' : 'error'" round size="small">
+          {{ latestDiagnosis.status === 'completed' ? '已完成' : '失败' }}
+        </n-tag>
+        <span>最近诊断结果</span>
+        <n-text depth="3" style="font-size:12px">{{ formatTime(latestDiagnosis.created_at) }}</n-text>
+        <n-button
+          size="tiny"
+          quaternary
+          style="margin-left:auto"
+          :loading="loadingDiagnosis"
+          @click="loadLatestDiagnosis"
+        >
+          刷新
+        </n-button>
+      </div>
+
+      <n-space vertical :size="8">
+        <n-space align="center" :size="8">
+          <n-text depth="3" style="font-size:12px">触发原因：</n-text>
+          <n-tag size="small" round type="info">{{ latestDiagnosis.trigger_reason }}</n-tag>
+          <n-text depth="3" style="font-size:12px">扫描人设：</n-text>
+          <n-tag size="small" round>{{ latestDiagnosis.trait }}</n-tag>
+        </n-space>
+
+        <template v-if="latestDiagnosis.status === 'completed'">
+          <n-alert v-if="latestDiagnosis.breakpoint_count === 0" type="success" :show-icon="true" style="font-size:12px">
+            未发现冲突断点，人设一致性良好
+          </n-alert>
+          <n-alert v-else type="warning" :show-icon="true" style="font-size:12px">
+            发现 {{ latestDiagnosis.breakpoint_count }} 个冲突断点
+            <n-button size="tiny" text type="primary" style="margin-left:8px" @click="useDiagnosisBreakpoints">
+              查看详情
+            </n-button>
+          </n-alert>
+        </template>
+
+        <n-alert v-else type="error" :show-icon="true" style="font-size:12px">
+          诊断失败：{{ latestDiagnosis.error_message || '未知错误' }}
+        </n-alert>
+      </n-space>
+    </div>
+
+    <!-- 快捷操作栏 -->
+    <div class="step-block quick-actions">
+      <n-space :size="10" align="center">
+        <n-button
+          type="primary"
+          size="small"
+          :loading="runningFullDiagnosis"
+          @click="runFullDiagnosis"
+        >
+          <template #icon><span style="font-size:14px">🔍</span></template>
+          全书诊断
+        </n-button>
+        <n-text depth="3" style="font-size:12px">
+          扫描全部内置人设（冷酷、理性、谨慎、温和）
+        </n-text>
+      </n-space>
+    </div>
+
     <!-- Step 1：扫描断点 -->
     <div class="step-block">
       <div class="step-title">
@@ -182,12 +245,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useWorkbenchRefreshStore } from '../../stores/workbenchRefreshStore'
 import { useMessage } from 'naive-ui'
 import { macroRefactorApi } from '../../api/tools'
-import type { LogicBreakpoint, RefactorProposal, ApplyMutationResponse } from '../../api/tools'
+import type { LogicBreakpoint, RefactorProposal, ApplyMutationResponse, MacroDiagnosisResult } from '../../api/tools'
 
 interface Props { slug: string }
 const props = defineProps<Props>()
@@ -198,7 +261,60 @@ const refreshStore = useWorkbenchRefreshStore()
 const { deskTick } = storeToRefs(refreshStore)
 watch(deskTick, () => {
   macroDeskStale.value = true
+  loadLatestDiagnosis()
 })
+
+// 自动诊断结果
+const latestDiagnosis = ref<MacroDiagnosisResult | null>(null)
+const loadingDiagnosis = ref(false)
+const runningFullDiagnosis = ref(false)
+
+const loadLatestDiagnosis = async () => {
+  loadingDiagnosis.value = true
+  try {
+    latestDiagnosis.value = await macroRefactorApi.getLatestDiagnosis(props.slug)
+  } catch {
+    // 静默失败
+  } finally {
+    loadingDiagnosis.value = false
+  }
+}
+
+const runFullDiagnosis = async () => {
+  runningFullDiagnosis.value = true
+  try {
+    const result = await macroRefactorApi.runDiagnosis(props.slug)
+    latestDiagnosis.value = result
+    if (result.status === 'completed') {
+      if (result.breakpoint_count === 0) {
+        message.success('诊断完成：未发现冲突断点')
+      } else {
+        message.warning(`诊断完成：发现 ${result.breakpoint_count} 个冲突断点`)
+      }
+    } else {
+      message.error('诊断失败：' + (result.error_message || '未知错误'))
+    }
+  } catch {
+    message.error('诊断请求失败')
+  } finally {
+    runningFullDiagnosis.value = false
+  }
+}
+
+const useDiagnosisBreakpoints = () => {
+  if (latestDiagnosis.value && latestDiagnosis.value.breakpoints.length > 0) {
+    breakpoints.value = latestDiagnosis.value.breakpoints
+    scanned.value = true
+    scanTrait.value = latestDiagnosis.value.trait
+    message.info(`已加载 ${breakpoints.value.length} 个诊断断点`)
+  }
+}
+
+const formatTime = (iso: string) => {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`
+}
 
 // Step 1 — 扫描
 const scanTrait = ref('')
@@ -294,6 +410,11 @@ const resetAll = () => {
   applyResult.value = null
   applyReason.value = ''
 }
+
+// 初始化
+onMounted(() => {
+  loadLatestDiagnosis()
+})
 </script>
 
 <style scoped>
@@ -338,7 +459,6 @@ const resetAll = () => {
   color: var(--text-color-3);
 }
 
-/* 仅后半段强调：与标题渐变同系，不做句首/句尾对称加粗 */
 .panel-lead-accent {
   display: block;
   margin-top: 10px;
@@ -372,6 +492,14 @@ const resetAll = () => {
   margin-bottom: 14px;
   color: var(--text-color-1);
   letter-spacing: 0.01em;
+}
+
+.diagnosis-result-block {
+  background: linear-gradient(to right, rgba(34, 197, 94, 0.03), rgba(59, 130, 246, 0.02));
+}
+
+.quick-actions {
+  background: rgba(99, 102, 241, 0.02);
 }
 
 .bp-card {

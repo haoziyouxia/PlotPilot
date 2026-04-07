@@ -63,6 +63,20 @@ export interface ApplyMutationResponse {
   applied_mutations: Record<string, unknown>[]
 }
 
+// 宏观诊断结果
+export interface MacroDiagnosisResult {
+  id: string
+  novel_id: string
+  trigger_reason: string
+  trait: string
+  conflict_tags: string[]
+  breakpoints: LogicBreakpoint[]
+  breakpoint_count: number
+  status: 'pending' | 'completed' | 'failed'
+  error_message: string | null
+  created_at: string
+}
+
 export const macroRefactorApi = {
   /** GET /api/v1/novels/{novel_id}/macro-refactor/breakpoints */
   scanBreakpoints: (novelId: string, trait: string, conflictTags?: string) =>
@@ -84,6 +98,27 @@ export const macroRefactorApi = {
       `/novels/${novelId}/macro-refactor/apply`,
       payload
     ) as unknown as Promise<ApplyMutationResponse>,
+
+  /** GET /api/v1/novels/{novel_id}/macro-refactor/diagnosis/latest */
+  getLatestDiagnosis: (novelId: string) =>
+    apiClient.get<MacroDiagnosisResult | null>(
+      `/novels/${novelId}/macro-refactor/diagnosis/latest`
+    ) as unknown as Promise<MacroDiagnosisResult | null>,
+
+  /** GET /api/v1/novels/{novel_id}/macro-refactor/diagnosis/history */
+  getDiagnosisHistory: (novelId: string, limit = 10) =>
+    apiClient.get<MacroDiagnosisResult[]>(
+      `/novels/${novelId}/macro-refactor/diagnosis/history`,
+      { params: { limit } }
+    ) as unknown as Promise<MacroDiagnosisResult[]>,
+
+  /** POST /api/v1/novels/{novel_id}/macro-refactor/diagnosis/run */
+  runDiagnosis: (novelId: string, traits?: string) =>
+    apiClient.post<MacroDiagnosisResult>(
+      `/novels/${novelId}/macro-refactor/diagnosis/run`,
+      null,
+      { params: traits ? { traits } : {} }
+    ) as unknown as Promise<MacroDiagnosisResult>,
 }
 
 // ── 实体叙事状态 ────────────────────────────────────────────
