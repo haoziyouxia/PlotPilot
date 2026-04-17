@@ -1,6 +1,6 @@
 """AnthropicProvider 测试"""
 import pytest
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 from domain.ai.value_objects.prompt import Prompt
 from domain.ai.services.llm_service import GenerationConfig
 from infrastructure.ai.config.settings import Settings
@@ -9,6 +9,12 @@ from infrastructure.ai.providers.anthropic_provider import AnthropicProvider
 
 class TestAnthropicProvider:
     """AnthropicProvider 测试"""
+
+    @pytest.fixture(autouse=True)
+    def clear_proxy_env(self, monkeypatch):
+        """隔离宿主机代理环境，避免污染测试。"""
+        for key in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"):
+            monkeypatch.delenv(key, raising=False)
 
     @pytest.fixture
     def settings(self):
@@ -35,11 +41,11 @@ class TestAnthropicProvider:
             max_tokens=4096
         )
 
-        mock_create = AsyncMock(return_value=Mock(
-            content=[Mock(type="text", text="Hi there!")],
-            usage=Mock(input_tokens=10, output_tokens=5)
-        ))
-        provider.async_client.messages.create = mock_create
+        with patch.object(provider.async_client.messages, 'create', new_callable=AsyncMock) as mock_create:
+            mock_create.return_value = Mock(
+                content=[Mock(type="text", text="Hi there!")],
+                usage=Mock(input_tokens=10, output_tokens=5)
+            )
 
         result = await provider.generate(prompt, config)
 
@@ -63,11 +69,11 @@ class TestAnthropicProvider:
             max_tokens=2048
         )
 
-        mock_create = AsyncMock(return_value=Mock(
-            content=[Mock(type="text", text="Response")],
-            usage=Mock(input_tokens=20, output_tokens=10)
-        ))
-        provider.async_client.messages.create = mock_create
+        with patch.object(provider.async_client.messages, 'create', new_callable=AsyncMock) as mock_create:
+            mock_create.return_value = Mock(
+                content=[Mock(type="text", text="Response")],
+                usage=Mock(input_tokens=20, output_tokens=10)
+            )
 
         await provider.generate(prompt, config)
 
@@ -112,10 +118,11 @@ class TestAnthropicProvider:
         prompt = Prompt(system="You are helpful", user="Hello")
         config = GenerationConfig()
 
-        provider.async_client.messages.create = AsyncMock(return_value=Mock(
-            content=[],
-            usage=Mock(input_tokens=10, output_tokens=5)
-        ))
+        with patch.object(provider.async_client.messages, 'create', new_callable=AsyncMock) as mock_create:
+            mock_create.return_value = Mock(
+                content=[],
+                usage=Mock(input_tokens=10, output_tokens=5)
+            )
 
         with pytest.raises(RuntimeError, match="empty content"):
             await provider.generate(prompt, config)
@@ -126,8 +133,8 @@ class TestAnthropicProvider:
         prompt = Prompt(system="You are helpful", user="Hello")
         config = GenerationConfig()
 
-        mock_create = AsyncMock(side_effect=Exception("Anthropic API Error"))
-        provider.async_client.messages.create = mock_create
+        with patch.object(provider.async_client.messages, 'create', new_callable=AsyncMock) as mock_create:
+            mock_create.side_effect = Exception("Anthropic API Error")
 
         with pytest.raises(RuntimeError, match="Failed to generate text"):
             await provider.generate(prompt, config)
@@ -138,8 +145,8 @@ class TestAnthropicProvider:
         prompt = Prompt(system="You are helpful", user="Hello")
         config = GenerationConfig()
 
-        mock_create = AsyncMock(side_effect=ConnectionError("Network unreachable"))
-        provider.async_client.messages.create = mock_create
+        with patch.object(provider.async_client.messages, 'create', new_callable=AsyncMock) as mock_create:
+            mock_create.side_effect = ConnectionError("Network unreachable")
 
         with pytest.raises(RuntimeError, match="Failed to generate text"):
             await provider.generate(prompt, config)
@@ -150,3 +157,69 @@ class TestAnthropicProvider:
 
         with pytest.raises(ValueError, match="API key is required"):
             AnthropicProvider(settings)
+
+    def test_initialization_ignores_ambient_proxy_env(self, monkeypatch):
+        """测试初始化时不信任环境代理变量"""
+        monkeypatch.setenv("HTTP_PROXY", "http://127.0.0.1:18080")
+        monkeypatch.setenv("HTTPS_PROXY", "http://127.0.0.1:18080")
+        monkeypatch.setenv("ALL_PROXY", "socks5://127.0.0.1:10808")
+
+        sync_client_kwargs = {}
+        async_client_kwargs = {}
+
+        def _fake_sync_client(**kwargs):
+            sync_client_kwargs.update(kwargs)
+            return Mock()
+
+        def _fake_async_client(**kwargs):
+            async_client_kwargs.update(kwargs)
+            return Mock()
+
+        settings = Settings(api_key="test-api-key", base_url="https://api.example.com")
+
+        with patch("infrastructure.ai.providers.anthropic_provider.Anthropic", side_effect=_fake_sync_client), \
+             patch("infrastructure.ai.providers.anthropic_provider.AsyncAnthropic", side_effect=_fake_async_client):
+            AnthropicProvider(settings)
+
+        assert sync_client_kwargs["http_client"].trust_env is False
+        assert async_client_kwargs["http_client"].trust_env is False
+
+    @pytest.mark.asyncio
+    async def test_stream_generate_ignores_ambient_proxy_env(self, provider):
+        """测试流式正文请求不信任环境代理变量"""
+        prompt = Prompt(system="You are helpful", user="Hello")
+        config = GenerationConfig(model="claude-3-5-sonnet-20241022", temperature=0.7, max_tokens=32)
+
+        class _FakeStreamResponse:
+            status_code = 200
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+            async def aread(self):
+                return b""
+
+            async def aiter_text(self):
+                yield ""
+
+        class _FakeAsyncClient:
+            def __init__(self, *args, **kwargs):
+                self.kwargs = kwargs
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+            def stream(self, *args, **kwargs):
+                return _FakeStreamResponse()
+
+        with patch("infrastructure.ai.providers.anthropic_provider.httpx.AsyncClient", side_effect=_FakeAsyncClient) as mock_async_client:
+            chunks = [chunk async for chunk in provider.stream_generate(prompt, config)]
+
+        assert chunks == []
+        assert mock_async_client.call_args.kwargs["trust_env"] is False
