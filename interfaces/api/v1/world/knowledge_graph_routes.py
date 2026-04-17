@@ -8,6 +8,7 @@ from typing import Optional
 
 from application.world.services.knowledge_graph_service import KnowledgeGraphService
 from domain.bible.triple import SourceType
+from infrastructure.persistence.database.sqlite_knowledge_repository import SqliteKnowledgeRepository
 from interfaces.api.dependencies import (
     get_knowledge_repository,
     get_knowledge_graph_service,

@@ -3,6 +3,7 @@
 提供 FastAPI 依赖注入函数，用于创建服务和仓储实例。
 """
 import logging
+import os
 from pathlib import Path
 from functools import lru_cache
 from typing import TYPE_CHECKING, Optional
