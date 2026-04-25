@@ -9,6 +9,8 @@ from interfaces.api.dependencies import get_novel_repository, get_chapter_reposi
 
 router = APIRouter(prefix="/export", tags=["export"])
 
+valid_library_formats = ["pdf", "markdown"]
+
 
 def get_export_service() -> ExportService:
     """获取导出服务"""
@@ -98,3 +100,41 @@ async def export_chapter(
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"导出失败: {str(e)}")
+
+
+@router.get("/library")
+async def export_library(
+    format: str = "pdf",
+    export_service: ExportService = Depends(get_export_service)
+):
+    """导出书目（所有小说列表）
+    
+    Args:
+        format: 导出格式，支持 pdf, markdown
+        
+    Returns:
+        流式响应，包含导出的文件
+    """
+    try:
+        # 验证格式
+        if format not in valid_library_formats:
+            raise HTTPException(status_code=400, detail=f"不支持的书目导出格式: {format}")
+        
+        # 执行导出
+        file_content, media_type, filename = export_service.export_library(format)
+        
+        # 对文件名进行URL编码，避免中文编码错误
+        encoded_filename = urllib.parse.quote(filename)
+        
+        # 返回流式响应
+        return StreamingResponse(
+            iter([file_content]),
+            media_type=media_type,
+            headers={
+                "Content-Disposition": f"attachment; filename={encoded_filename}; filename*=UTF-8''{encoded_filename}"
+            }
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"书目导出失败: {str(e)}")

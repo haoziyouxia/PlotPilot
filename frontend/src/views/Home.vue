@@ -243,6 +243,27 @@
                       :checked="selectedBooks.includes(book.slug)"
                       @update:checked="(val: boolean) => toggleBookSelection(book.slug, val)"
                     />
+                    <n-dropdown
+                      trigger="click"
+                      :options="[
+                        { label: '导出 PDF', key: 'pdf' },
+                        { label: '导出 Word', key: 'docx' },
+                      ]"
+                      @select="(key: string) => handleExportNovel(book.slug, key)"
+                    >
+                      <n-button
+                        quaternary
+                        circle
+                        size="tiny"
+                        type="primary"
+                        :loading="exportingSlug === book.slug"
+                        aria-label="导出书目"
+                      >
+                        <template #icon>
+                          <n-icon><IconDownload /></n-icon>
+                        </template>
+                      </n-button>
+                    </n-dropdown>
                     <n-popconfirm
                       positive-text="删除"
                       negative-text="取消"
@@ -441,6 +462,10 @@ const IconChevronUp = () =>
   h('svg', { xmlns: 'http://www.w3.org/2000/svg', viewBox: '0 0 24 24', width: '1em', height: '1em' },
     h('path', { fill: 'currentColor', d: 'M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6 1.41 1.41z' }))
 
+const IconDownload = () =>
+  h('svg', { xmlns: 'http://www.w3.org/2000/svg', viewBox: '0 0 24 24', width: '1em', height: '1em' },
+    h('path', { fill: 'currentColor', d: 'M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z' }))
+
 interface BookListItem {
   slug: string
   title: string
@@ -459,6 +484,8 @@ const createInputRef = ref<any>(null)
 const showAdvanced = ref(false)
 const creating = ref(false)
 const loading = ref(false)
+const exporting = ref(false)
+const exportingSlug = ref<string | null>(null)
 
 const SIDEBAR_COLLAPSED_KEY = 'plotpilot_sidebar_collapsed'
 const sidebarCollapsed = ref(localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true')
@@ -771,6 +798,42 @@ const getStageType = (stage: string) => {
     completed: 'success',
   }
   return map[stage] || 'default'
+}
+
+const handleExportNovel = async (slug: string, format: string) => {
+  exportingSlug.value = slug
+  try {
+    const response = await fetch(`/api/v1/export/novel/${slug}?format=${format}`)
+    if (!response.ok) {
+      throw new Error('导出失败')
+    }
+    
+    const blob = await response.blob()
+    const contentDisposition = response.headers.get('Content-Disposition')
+    const ext = format === 'pdf' ? 'pdf' : 'docx'
+    let filename = `小说.${ext}`
+    if (contentDisposition) {
+      const match = contentDisposition.match(/filename\*?=([^;]+)/)
+      if (match) {
+        filename = decodeURIComponent(match[1].replace(/['"]/g, ''))
+      }
+    }
+    
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    window.URL.revokeObjectURL(url)
+    
+    message.success('导出成功')
+  } catch (error) {
+    message.error('导出失败')
+  } finally {
+    exportingSlug.value = null
+  }
 }
 
 onMounted(() => {
